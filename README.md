@@ -3,6 +3,66 @@ RMII interface ethernet MAC Core for 10/100 MBit ethernet implementation with su
 
 ![Схема](https://user-images.githubusercontent.com/45385195/150557171-c8f261c2-5799-43de-b611-a475b25cbab5.png)
 
+
+## Eng
+
+### Description
+
+Single core for implementation MAC layer of RMII ethernet 
+
+Physical layer presented by IC MicroChip LAN8720A-CP 
+
+RMII - interface, which different from SGMII, RGMII, GMII. Work with two lines on each side. It is old interface, so old trat Xilinx stopped support this standart of this interface, removing ip core from ip catalog in Vivado.
+
+Interface supports speed 10Mbit/100 MBit per second
+
+In this case it necessary implement simple custom module for support this standart
+
+### Clocking
+
+Component 
+The component provides for work with the transition along the clock domain through internal queues with the possibility of CDC. The internal logic is powered by the PHY_CLK clock signal, which comes from the physical layer. The ETH_RX_AXIS_* and ETH_TX_AXIS_* outputs are accompanied by their own CLK signals to provide more flexible operation. 
+
+### Receive part 
+
+Data received from two-bit data wire with PHY_CRS_DV signal as valid. This Stream deserialized from 2 to 8 bits, and latched to registry file, in which searching preamble of Ethernet (0x55555555555555) and SFD (StartFrameDelimiter = 0xD5), When this sequence founded, all next data is treated as Ethernet packet data.
+
+![Data format from PHY IC](https://user-images.githubusercontent.com/45385195/150559053-fac0ec28-87ee-4b8d-80dd-f459432a45a9.png)
+
+Checksum calculated for all data in packet, excluded PREAMBLE and SFD. Checksum calculated as CRC32
+
+In case when packet was received with uncorrect CRC or with corrupted data, this packet goes to user logic with CRC_BAD signal. If packet CRC is good, packet goes to user logic with CRC_GOOD signal.
+
+CRC_GOOD and CRC_BAD asserted for 1 clock period. 
+
+Packet goes outside over FIFO with Cross Domain Crossing(CDC). Data width is 8 bit, protocol - AXI-Stream with support TVALID, TLAST, TREADY. ETH_RX_AXIS_TVALID signal can be deasserted inside the packet, if speed of external logic greater than internal logic PHY_CLK. 
+
+### Transmit part
+
+Data sends in packet mode. Packet collects in internal queue, and only after that goes to PHY layer. 
+When packet from logic fully in internal FIFO (with signal TLAST), then FSM goes to transmit PREAMBLE data. 
+FSM(FiniteStateMachine) transmit PREAMBLE, SFD, DATA and CRC. 
+
+CRC calculates while data reads from internal fifo. 
+
+Padding to 60 bytes, if input packet was small size not performed. 
+
+Input 8 bit words transform to 2 bit words over component [rmii_serializer](https://github.com/MasterPlayer/rmii-ethernet-mac/blob/d7a2b9ed4b12035db87bcb60c9d02900f487736f/hw/rmii_serializer.sv)
+
+CRC calculates automatically, user intervention not required
+
+# Testing
+
+Component RMII_ETHERNET connected with ethernet host, which can send responses for ARP/ICMP requests. Workability of component confirmed by the fact that there answern on PING requests. Host Code not presented in this project
+
+# Limitations
+
+1. Not tested 10Mbit/s Ethernet. Behaviour of PHY_INT(CLK) signal and CRS_DV signal unknown
+2. No Padding for minimal packet size
+3. No processing RXER
+4. No MDIO interface support
+
+
 ## Rus 
 
 ### Описание
